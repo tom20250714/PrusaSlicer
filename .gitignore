@@ -1,0 +1,11 @@
+﻿build/
+.vs/
+.vscode/
+*.dll
+*.exe
+*.pdb
+*.lib
+*.exp
+*.map
+*.dlp/
+benchmark-output/
