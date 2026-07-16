@@ -1,0 +1,47 @@
+diff --git a/src/libslic3r/PNGReadWrite.cpp b/src/libslic3r/PNGReadWrite.cpp
+--- a/src/libslic3r/PNGReadWrite.cpp
++++ b/src/libslic3r/PNGReadWrite.cpp
+@@ -181,2 +181,4 @@
+-static bool write_rgb_or_gray_to_file(const char *file_name_utf8, size_t width, size_t height, int png_color_type, const uint8_t *data, bool flip = false)
++static bool write_rgb_or_gray_to_file(const char *file_name_utf8, size_t width, size_t height,
++                                      int png_color_type, const uint8_t *data, bool flip = false,
++                                      bool fast_compression = false)
+ {
+@@ -226,5 +228,9 @@
+         PNG_INTERLACE_NONE,
+         PNG_COMPRESSION_TYPE_DEFAULT,
+         PNG_FILTER_TYPE_DEFAULT);
++    if (fast_compression) {
++        png_set_compression_level(png_ptr, 1);
++        png_set_filter(png_ptr, PNG_FILTER_TYPE_BASE, PNG_FILTER_NONE);
++    }
+ 
+     // Initialize rows of PNG.
+@@ -298,7 +304,15 @@
+ bool write_gray_to_file(const std::string &file_name_utf8, size_t width, size_t height, const std::vector<uint8_t> &data_gray)
+ {
+     assert(width * height == data_gray.size());
+     return write_gray_to_file(file_name_utf8.c_str(), width, height, data_gray.data());
+ }
++
++bool write_gray_to_file_fast(const std::string &file_name_utf8, size_t width, size_t height,
++                             const std::vector<uint8_t> &data_gray)
++{
++    assert(width * height == data_gray.size());
++    return write_rgb_or_gray_to_file(file_name_utf8.c_str(), width, height,
++                                     PNG_COLOR_TYPE_GRAY, data_gray.data(), false, true);
++}
+ 
+ // Scaled variants are mostly useful for debugging purposes, for example to export images of low resolution distance fileds.
+diff --git a/src/libslic3r/PNGReadWrite.hpp b/src/libslic3r/PNGReadWrite.hpp
+--- a/src/libslic3r/PNGReadWrite.hpp
++++ b/src/libslic3r/PNGReadWrite.hpp
+@@ -91,5 +91,8 @@
+ bool write_gray_to_file(const char *file_name_utf8, size_t width, size_t height, const uint8_t *data_gray);
+ bool write_gray_to_file(const std::string &file_name_utf8, size_t width, size_t height, const uint8_t *data_gray);
+ bool write_gray_to_file(const std::string &file_name_utf8, size_t width, size_t height, const std::vector<uint8_t> &data_gray);
++// Low-compression, no-filter PNG writer for high-volume DLP mask export.
++bool write_gray_to_file_fast(const std::string &file_name_utf8, size_t width, size_t height,
++                             const std::vector<uint8_t> &data_gray);
+ 
+ // Scaled variants are mostly useful for debugging purposes, for example to export images of low resolution distance fileds.
