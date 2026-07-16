@@ -47,6 +47,14 @@ function(add_cmake_project projectname)
         set(_configs_line "")
     endif ()
 
+    # CMake 4 removed compatibility modes older than 3.5. Several pinned
+    # PrusaSlicer dependencies still declare an older minimum while building
+    # correctly with the 3.5 policy baseline.
+    set(_policy_compat_line "")
+    if (CMAKE_VERSION VERSION_GREATER_EQUAL 4.0)
+        set(_policy_compat_line -DCMAKE_POLICY_VERSION_MINIMUM:STRING=3.5)
+    endif ()
+
     set(_verbose_switch "")
     if (${PROJECT_NAME}_DEP_BUILD_VERBOSE)
         if (CMAKE_GENERATOR MATCHES "Ninja")
@@ -73,6 +81,7 @@ function(add_cmake_project projectname)
             -DCMAKE_TOOLCHAIN_FILE:STRING=${CMAKE_TOOLCHAIN_FILE}
             -DBUILD_SHARED_LIBS:BOOL=${BUILD_SHARED_LIBS}
             "${_configs_line}"
+            "${_policy_compat_line}"
             ${DEP_CMAKE_OPTS}
             ${P_ARGS_CMAKE_ARGS}
        ${P_ARGS_UNPARSED_ARGUMENTS}

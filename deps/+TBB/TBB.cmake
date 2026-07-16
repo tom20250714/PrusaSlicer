@@ -5,6 +5,8 @@ add_cmake_project(
     CMAKE_ARGS          
         -DTBB_BUILD_SHARED=${BUILD_SHARED_LIBS}
         -DTBB_TEST=OFF
+        # Do not pick up an MSYS2 hwloc through pkg-config in an MSVC build.
+        -DTBB_DISABLE_HWLOC_AUTOMATIC_SEARCH=ON
         -DCMAKE_POSITION_INDEPENDENT_CODE=ON
         -DCMAKE_DEBUG_POSTFIX=_debug
 )

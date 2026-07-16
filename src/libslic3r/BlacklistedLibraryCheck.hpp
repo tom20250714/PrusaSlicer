@@ -5,15 +5,15 @@
 #ifndef slic3r_BlacklistedLibraryCheck_hpp_
 #define slic3r_BlacklistedLibraryCheck_hpp_
 
-#ifdef  WIN32
+#ifdef _WIN32
 #include <windows.h>
 #include <vector>
 #include <string>
-#endif //WIN32
+#endif // _WIN32
 
 namespace Slic3r {
 
-#ifdef  WIN32
+#ifdef _WIN32
 class BlacklistedLibraryCheck
 {
 public:
@@ -43,7 +43,7 @@ private:
     static const std::vector<std::wstring> blacklist;
 };
 
-#endif //WIN32
+#endif // _WIN32
 
 } // namespace Slic3r
 

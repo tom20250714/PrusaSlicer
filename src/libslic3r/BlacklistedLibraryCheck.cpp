@@ -5,13 +5,14 @@
 ///|/
 #include "BlacklistedLibraryCheck.hpp"
 
-#ifdef  WIN32
+#ifdef _WIN32
+#include <windows.h>
 #include <psapi.h>
-# endif //WIN32
+#endif // _WIN32
 
 namespace Slic3r {
 
-#ifdef  WIN32
+#ifdef _WIN32
 
 //only dll name with .dll suffix - currently case sensitive
 const std::vector<std::wstring> BlacklistedLibraryCheck::blacklist({ L"NahimicOSD.dll", L"SS2OSD.dll", L"amhook.dll", L"AMHook.dll" });
@@ -81,6 +82,6 @@ bool BlacklistedLibraryCheck::is_blacklisted(const std::string &dllpath)
     return BlacklistedLibraryCheck::is_blacklisted(boost::nowide::widen(dllpath));
 }
 
-#endif //WIN32
+#endif // _WIN32
 
 } // namespace Slic3r

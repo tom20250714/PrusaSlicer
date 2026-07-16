@@ -73,12 +73,12 @@ REM new minimum version and setting PS_VERSION_EXCEEDED to the maximum supported
 REM version plus one.
 REM The officially supported toolchain versions are:
 REM   Minimum: 16 (Visual Studio 2019)
-REM   Maximum: 17 (Visual Studio 2022)
+REM   Maximum: 18 (Visual Studio Build Tools 2026)
 SET PS_VERSION_SUPPORTED=16
-SET PS_VERSION_EXCEEDED=18
+SET PS_VERSION_EXCEEDED=19
 SET VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe
 IF NOT EXIST "%VSWHERE%" SET VSWHERE=%ProgramFiles%\Microsoft Visual Studio\Installer\vswhere.exe
-FOR /F "tokens=4 USEBACKQ delims=." %%I IN (`"%VSWHERE%" -nologo -property productId`) DO SET PS_PRODUCT_DEFAULT=%%I
+FOR /F "tokens=4 USEBACKQ delims=." %%I IN (`"%VSWHERE%" -products * -latest -nologo -property productId`) DO SET PS_PRODUCT_DEFAULT=%%I
 IF "%PS_PRODUCT_DEFAULT%" EQU "" (
     SET EXIT_STATUS=-1
     @ECHO ERROR: No Visual Studio installation found. 1>&2
@@ -86,7 +86,7 @@ IF "%PS_PRODUCT_DEFAULT%" EQU "" (
 )
 REM Default to the latest supported version if multiple are available
 FOR /F "tokens=1 USEBACKQ delims=." %%I IN (
-    `^""%VSWHERE%" -version "[%PS_VERSION_SUPPORTED%,%PS_VERSION_EXCEEDED%)" -latest -nologo -property catalog_buildVersion^"`
+    `^""%VSWHERE%" -products * -version "[%PS_VERSION_SUPPORTED%,%PS_VERSION_EXCEEDED%)" -latest -nologo -property catalog_buildVersion^"`
 ) DO SET PS_VERSION_SUPPORTED=%%I
 
 REM Probe build directories and system state for reasonable default arguments
@@ -175,6 +175,8 @@ IF NOT EXIST "%MSVC_DIR%" (
 )
 REM Cmake always defaults to latest supported MSVC generator. Let's make sure it uses what we select.
 FOR /F "tokens=* USEBACKQ" %%I IN (`^""%VSWHERE%" %MSVC_FILTER% -nologo -property catalog_productLineVersion^"`) DO SET PS_PRODUCT_VERSION=%%I
+REM VS 2026 Build Tools reports productLineVersion=18 instead of the generator year.
+IF "%PS_VERSION%" EQU "18" SET PS_PRODUCT_VERSION=2026
 
 REM Give the user a chance to cancel if we found something odd.
 IF "%PS_ASK_TO_CONTINUE%" EQU "" GOTO :BUILD_ENV
@@ -198,6 +200,8 @@ SET PS_CURRENT_STEP=environment
 SET CMAKE_GENERATOR=Visual Studio %PS_VERSION% %PS_PRODUCT_VERSION%
 CALL "%MSVC_DIR%\Common7\Tools\vsdevcmd.bat" -arch=%PS_ARCH% -host_arch=%PS_ARCH_HOST% -app_platform=Desktop
 IF %ERRORLEVEL% NEQ 0 GOTO :END
+REM Prefer the Visual Studio CMake/curl build over an MSYS2 CMake possibly present in PATH.
+SET PATH=%MSVC_DIR%\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin;%PATH%
 REM Need to reset the echo state after vsdevcmd.bat clobbers it.
 @IF "%PS_ECHO_ON%" NEQ "" (echo on) ELSE (echo off)
 IF "%PS_DRY_RUN_ONLY%" NEQ "" (
@@ -215,9 +219,9 @@ IF "%PS_STEPS_DIRTY%" EQU "" (
     CALL :MAKE_OR_CLEAN_DIRECTORY "%PS_DESTDIR%"
 )
 cd deps\build || GOTO :END
-cmake.exe .. -DDESTDIR="%PS_DESTDIR%"
+cmake.exe .. -DDESTDIR="%PS_DESTDIR%" -DDEP_DEBUG=OFF
 IF %ERRORLEVEL% NEQ 0 IF "%PS_STEPS_DIRTY%" NEQ "" (
-    (del CMakeCache.txt && cmake.exe .. -DDESTDIR="%PS_DESTDIR%") || GOTO :END
+    (del CMakeCache.txt && cmake.exe .. -DDESTDIR="%PS_DESTDIR%" -DDEP_DEBUG=OFF) || GOTO :END
 ) ELSE GOTO :END
 (echo %PS_DESTDIR%)> "%PS_DEPS_PATH_FILE%"
 msbuild /m ALL_BUILD.vcxproj /p:Configuration=%PS_CONFIG% /v:quiet %PS_PRIORITY% || GOTO :END
@@ -238,9 +242,9 @@ SET PS_PROJECT_IS_OPEN=
 FOR /F "tokens=2 delims=," %%I in (
     'tasklist /V /FI "IMAGENAME eq devenv.exe " /NH /FO CSV ^| find "%PS_SOLUTION_NAME%"'
 ) do SET PS_PROJECT_IS_OPEN=%%~I
-cmake.exe .. -DCMAKE_PREFIX_PATH="%PS_DESTDIR%\usr\local" -DCMAKE_CONFIGURATION_TYPES=%PS_CONFIG_LIST%
+cmake.exe .. -DCMAKE_PREFIX_PATH="%PS_DESTDIR%\usr\local" -DCMAKE_CONFIGURATION_TYPES=%PS_CONFIG% -DCMAKE_POLICY_VERSION_MINIMUM=3.5
 IF %ERRORLEVEL% NEQ 0 IF "%PS_STEPS_DIRTY%" NEQ "" (
-    (del CMakeCache.txt && cmake.exe .. -DCMAKE_PREFIX_PATH="%PS_DESTDIR%\usr\local" -DCMAKE_CONFIGURATION_TYPES=%PS_CONFIG_LIST%) || GOTO :END
+    (del CMakeCache.txt && cmake.exe .. -DCMAKE_PREFIX_PATH="%PS_DESTDIR%\usr\local" -DCMAKE_CONFIGURATION_TYPES=%PS_CONFIG% -DCMAKE_POLICY_VERSION_MINIMUM=3.5) || GOTO :END
 ) ELSE GOTO :END
 REM Skip the build step if we're using the undocumented app-cmake to regenerate the full config from inside devenv
 IF "%PS_STEPS%" NEQ "app-cmake" msbuild /m ALL_BUILD.vcxproj /p:Configuration=%PS_CONFIG% /v:quiet %PS_PRIORITY% || GOTO :END

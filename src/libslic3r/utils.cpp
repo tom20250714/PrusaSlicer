@@ -19,7 +19,7 @@
 #include "format.hpp"
 #include "libslic3r.h"
 
-#ifdef WIN32
+#ifdef _WIN32
 	#include <windows.h>
 	#include <psapi.h>
 #else
@@ -825,7 +825,7 @@ bool is_shapes_dir(const std::string& dir)
 
 } // namespace Slic3r
 
-#ifdef WIN32
+#ifdef _WIN32
     #ifndef NOMINMAX
     # define NOMINMAX
     #endif
@@ -940,7 +940,7 @@ std::string header_gcodeviewer_generated()
 
 unsigned get_current_pid()
 {
-#ifdef WIN32
+#ifdef _WIN32
     return GetCurrentProcessId();
 #elif __APPLE__
     return ::getpid();
@@ -1144,7 +1144,7 @@ std::string log_memory_info(bool ignore_loglevel)
 {
     std::string out;
     if (ignore_loglevel || logSeverity <= boost::log::trivial::info) {
-#ifdef WIN32
+#ifdef _WIN32
     #ifndef PROCESS_MEMORY_COUNTERS_EX
         // MingW32 doesn't have this struct in psapi.h
         typedef struct _PROCESS_MEMORY_COUNTERS_EX {

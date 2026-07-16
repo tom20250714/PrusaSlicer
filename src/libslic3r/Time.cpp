@@ -123,7 +123,7 @@ namespace {
 struct std::tm * _gmtime_r(const time_t *timep, struct tm *result)
 {
     assert(timep != nullptr && result != nullptr);
-#ifdef WIN32
+#ifdef _WIN32
     time_t t = *timep;
     gmtime_s(result, &t);
     return result;
@@ -135,7 +135,7 @@ struct std::tm * _gmtime_r(const time_t *timep, struct tm *result)
 struct std::tm * _localtime_r(const time_t *timep, struct tm *result)
 {
     assert(timep != nullptr && result != nullptr);
-#ifdef WIN32
+#ifdef _WIN32
     // Converts a time_t time value to a tm structure, and corrects for the
     // local time zone.
     time_t t = *timep;
@@ -156,7 +156,7 @@ time_t _mktime(const struct std::tm *tms)
 time_t _timegm(const struct std::tm *tms)
 {
     std::tm _tms = *tms;
-#ifdef WIN32
+#ifdef _WIN32
     return _mkgmtime(&_tms);
 #else /* WIN32 */
     return timegm(&_tms);
