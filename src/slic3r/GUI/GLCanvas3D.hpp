@@ -508,6 +508,9 @@ private:
     bool m_use_clipping_planes;
     std::array<SlaCap, 2> m_sla_caps;
     int m_layer_slider_index = -1;
+    unsigned int m_dlp_layer_texture_id { 0 };
+    int          m_dlp_texture_layer_index { -1 };
+    uint64_t     m_dlp_texture_revision { 0 };
     std::string m_sidebar_field;
     // when true renders an extra frame by not resetting m_dirty to false
     // see request_extra_frame()
@@ -1015,6 +1018,7 @@ private:
 #endif // ENABLE_RENDER_SELECTION_CENTER
     void _check_and_update_toolbar_icon_scale();
     void _render_overlays();
+    void _render_dlp_layer_overlay();
     void _render_bed_selector();
     void _render_volumes_for_picking(const Camera& camera) const;
     void _render_current_gizmo() const { m_gizmos.render_current_gizmo(); }

@@ -1,0 +1,19 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -199,6 +199,15 @@ set_property(GLOBAL PROPERTY USE_FOLDERS ON)
+ # WIN10SDK_PATH is used to point CMake to the WIN10 SDK installation directory.
+ # We pick it from environment if it is not defined in another way
+ if(WIN32)
++    # Do not mix MinGW libraries and headers into an MSVC build. pkg-config is
++    # still used explicitly for the bundled FFmpeg .pc files.
++    list(APPEND CMAKE_IGNORE_PREFIX_PATH "C:/msys64/mingw64")
++    if(NOT PKG_CONFIG_EXECUTABLE AND
++       EXISTS "C:/msys64/mingw64/bin/pkg-config.exe")
++        set(PKG_CONFIG_EXECUTABLE "C:/msys64/mingw64/bin/pkg-config.exe"
++            CACHE FILEPATH "pkg-config executable")
++    endif()
++
+     if(EXISTS "${CMAKE_SOURCE_DIR}/scripts/hooks/pre-commit"  AND EXISTS "${CMAKE_SOURCE_DIR}/.git")
+        if(IS_DIRECTORY "${CMAKE_SOURCE_DIR}/.git")
+             message(STATUS ".git: directory")

@@ -40,6 +40,7 @@
 // this include must follow the wxWidgets ones or it won't compile on Windows -> see http://trac.wxwidgets.org/ticket/2421
 #include "libslic3r/Print.hpp"
 #include "libslic3r/SLAPrint.hpp"
+#include "libslic3r/DLPPrint.hpp"
 #include "NotificationManager.hpp"
 #include "libslic3r/MultipleBeds.hpp"
 
@@ -290,6 +291,8 @@ void Preview::load_print(bool keep_z_range)
         load_print_as_fff(keep_z_range);
     else if (tech == ptSLA)
         load_print_as_sla();
+    else if (tech == ptDLP)
+        load_print_as_dlp();
 
     Layout();
 }
@@ -407,7 +410,7 @@ void Preview::create_sliders()
     m_layers_slider->seq_top_layer_only(wxGetApp().app_config->get_bool("seq_top_layer_only"));
     m_layers_slider->show_ruler(wxGetApp().app_config->get_bool("show_ruler_in_dbl_slider"), wxGetApp().app_config->get_bool("show_ruler_bg_in_dbl_slider"));
 
-    m_layers_slider->SetDrawMode(wxGetApp().preset_bundle->printers.get_edited_preset().printer_technology() == ptSLA,
+    m_layers_slider->SetDrawMode(is_resin_technology(wxGetApp().preset_bundle->printers.get_edited_preset().printer_technology()),
                                  wxGetApp().preset_bundle->prints.get_edited_preset().config.opt_bool("complete_objects"));
 
     m_layers_slider->set_callback_on_thumb_move( [this]() -> void { Preview::on_layers_slider_scroll_changed(); } );
@@ -649,10 +652,21 @@ void Preview::update_layers_slider(const std::vector<double>& layers_z, bool kee
     m_layers_slider->SetTicksValues(ticks_info_from_model);
 
     bool sla_print_technology = plater->printer_technology() == ptSLA;
+    bool resin_print_technology = is_resin_technology(plater->printer_technology());
     bool sequential_print = wxGetApp().preset_bundle->prints.get_edited_preset().config.opt_bool("complete_objects");
-    m_layers_slider->SetDrawMode(sla_print_technology, sequential_print);
+    m_layers_slider->SetDrawMode(resin_print_technology, sequential_print);
     if (sla_print_technology)
         m_layers_slider->SetLayersTimes(plater->active_sla_print().print_statistics().layers_times_running_total);
+    else if (plater->printer_technology() == ptDLP) {
+        std::vector<double> running_times;
+        running_times.reserve(plater->active_dlp_print().raster_layers().size());
+        double elapsed = 0.0;
+        for (const dlp::RasterLayer &layer : plater->active_dlp_print().raster_layers()) {
+            elapsed += layer.exposure_time_s;
+            running_times.emplace_back(elapsed);
+        }
+        m_layers_slider->SetLayersTimes(running_times);
+    }
     else
         m_layers_slider->SetLayersTimes(m_canvas->get_gcode_layers_times_cache(), active_gcode_result()->print_statistics.modes.front().time);
 
@@ -667,8 +681,8 @@ void Preview::update_layers_slider(const std::vector<double>& layers_z, bool kee
         }
 
     auto get_print_obj_idxs = [plater]() ->std::string {
-        if (plater->printer_technology() == ptSLA)
-            return "sla";
+        if (is_resin_technology(plater->printer_technology()))
+            return plater->printer_technology() == ptDLP ? "dlp" : "sla";
         const Print& print = GUI::wxGetApp().plater()->active_fff_print();
         std::string idxs;
         for (auto object : print.objects())
@@ -1056,6 +1070,31 @@ void Preview::load_print_as_sla()
     }
 }
 
+void Preview::load_print_as_dlp()
+{
+    if (m_loaded || m_process->current_printer_technology() != ptDLP)
+        return;
+
+    const DLPPrint *print = m_process->dlp_print();
+    std::vector<double> zs;
+    if (print != nullptr && print->finished()) {
+        zs.reserve(print->raster_layers().size());
+        for (const dlp::RasterLayer &layer : print->raster_layers())
+            zs.emplace_back(layer.height_mm);
+    }
+
+    m_canvas->reset_clipping_planes_cache();
+    m_canvas->set_use_clipping_planes(true);
+    m_moves_slider->Hide();
+    if (zs.empty())
+        hide_layers_slider();
+    else
+        update_layers_slider(zs);
+
+    m_canvas_widget->Refresh();
+    m_loaded = true;
+}
+
 void Preview::on_layers_slider_scroll_changed()
 {
     if (IsShown()) {
@@ -1065,7 +1104,7 @@ void Preview::on_layers_slider_scroll_changed()
             m_canvas->set_toolpaths_z_range({ static_cast<unsigned int>(m_layers_slider->GetLowerPos()), static_cast<unsigned int>(m_layers_slider->GetHigherPos()) });
             m_canvas->set_as_dirty();
         }
-        else if (tech == ptSLA) {
+        else if (is_resin_technology(tech)) {
             m_canvas->set_clipping_plane(0, ClippingPlane(Vec3d::UnitZ(), -m_layers_slider->GetLowerValue()));
             m_canvas->set_clipping_plane(1, ClippingPlane(-Vec3d::UnitZ(), m_layers_slider->GetHigherValue()));
             m_canvas->set_layer_slider_index(m_layers_slider->GetHigherPos());

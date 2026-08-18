@@ -246,11 +246,23 @@ enum PrinterTechnology : unsigned char
     ptFFF,
     // Stereolitography
     ptSLA,
+    // Digital Light Processing, handled by the independent DLP engine.
+    ptDLP,
     // Unknown, useful for command line processing
     ptUnknown,
-    // Any technology, useful for parameters compatible with both ptFFF and ptSLA
+    // Any technology, useful for parameters compatible with all print technologies.
     ptAny
 };
+
+inline constexpr bool is_resin_technology(PrinterTechnology technology) noexcept
+{
+    return technology == ptSLA || technology == ptDLP;
+}
+
+inline constexpr bool is_dlp_technology(PrinterTechnology technology) noexcept
+{
+    return technology == ptDLP;
+}
 
 enum ForwardCompatibilitySubstitutionRule
 {

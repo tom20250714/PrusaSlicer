@@ -30,7 +30,9 @@
 #include <string>
 #include <regex>
 #include <future>
+#include <thread>
 #include <utility>
+#include <tbb/parallel_for.h>
 #include <boost/algorithm/string.hpp>
 #include <boost/nowide/cstdio.hpp>
 #include <boost/optional.hpp>
@@ -75,6 +77,10 @@
 #include "libslic3r/Print.hpp"
 #include "libslic3r/PrintConfig.hpp"
 #include "libslic3r/SLAPrint.hpp"
+#include "libslic3r/DLPPrint.hpp"
+#include "libslic3r/DLP/DLPGeometrySlicer.hpp"
+#include "libslic3r/DLP/DLPRasterizer.hpp"
+#include "libslic3r/DLP/DLPDirectoryArchive.hpp"
 #include "libslic3r/Utils.hpp"
 #include "libslic3r/PresetBundle.hpp"
 #include "libslic3r/miniz_extension.hpp"
@@ -323,6 +329,7 @@ struct Plater::priv
     Slic3r::DynamicPrintConfig *config;        // FIXME: leak?
     std::vector<std::unique_ptr<Slic3r::Print>>     fff_prints;
     std::vector<std::unique_ptr<Slic3r::SLAPrint>> sla_prints;
+    std::vector<std::unique_ptr<Slic3r::DLPPrint>>  dlp_prints;
     Slic3r::Model               model;
     PrinterTechnology           printer_technology = ptFFF;
     std::vector<Slic3r::GCodeProcessorResult> gcode_results;
@@ -734,9 +741,11 @@ void Plater::priv::init()
         gcode_results.emplace_back();
         fff_prints.emplace_back(std::make_unique<Print>());
         sla_prints.emplace_back(std::make_unique<SLAPrint>());
+        dlp_prints.emplace_back(std::make_unique<DLPPrint>());
     }
     background_process.set_fff_print(fff_prints.front().get());
     background_process.set_sla_print(sla_prints.front().get());
+    background_process.set_dlp_print(dlp_prints.front().get());
     background_process.set_gcode_result(&gcode_results.front());
     background_process.set_thumbnail_cb([this](const ThumbnailsParams& params) { return this->generate_thumbnails(params, Camera::EType::Ortho); });
     background_process.set_slicing_completed_event(EVT_SLICING_COMPLETED);
@@ -751,6 +760,7 @@ void Plater::priv::init()
     };
     std::for_each(fff_prints.begin(), fff_prints.end(), [statuscb](std::unique_ptr<Print>& p)    { p->set_status_callback(statuscb); });
     std::for_each(sla_prints.begin(), sla_prints.end(), [statuscb](std::unique_ptr<SLAPrint>& p) { p->set_status_callback(statuscb); });
+    std::for_each(dlp_prints.begin(), dlp_prints.end(), [statuscb](std::unique_ptr<DLPPrint>& p) { p->set_status_callback(statuscb); });
     this->q->Bind(EVT_SLICING_UPDATE, &priv::on_slicing_update, this);
 
     view3D = new View3D(q, bed, &model, config, &background_process);
@@ -1338,7 +1348,7 @@ std::vector<size_t> Plater::priv::load_files(const std::vector<fs::path>& input_
 
     PlaterAfterLoadAutoArrange plater_after_load_auto_arrange;
 
-    bool one_by_one = input_files.size() == 1 || printer_technology == ptSLA || nozzle_dmrs->values.size() <= 1;
+    bool one_by_one = input_files.size() == 1 || is_resin_technology(printer_technology) || nozzle_dmrs == nullptr || nozzle_dmrs->values.size() <= 1;
     if (! one_by_one) {
         for (const auto &path : input_files) {
             if (std::regex_match(path.string(), pattern_bundle)) {
@@ -2424,6 +2434,7 @@ unsigned int Plater::priv::update_background_process(bool force_validation, bool
     background_process.set_temp_output_path(active_bed);
     background_process.set_fff_print(&q->active_fff_print());
     background_process.set_sla_print(&q->active_sla_print());
+    background_process.set_dlp_print(&q->active_dlp_print());
     background_process.set_gcode_result(&gcode_results[active_bed]);
     background_process.select_technology(this->printer_technology);
 
@@ -2493,6 +2504,11 @@ unsigned int Plater::priv::update_background_process(bool force_validation, bool
             invalidated = background_process.apply(q->model(), full_config, &warnings, &original_config);
             apply_statuses[0] = invalidated;
         });
+    } else if (printer_technology == ptDLP) {
+        with_single_bed_model_sla(q->model(), s_multiple_beds.get_active_bed(), [&](){
+            invalidated = background_process.apply(q->model(), full_config, &warnings);
+            apply_statuses[0] = invalidated;
+        });
     } else {
         throw std::runtime_error{"Ivalid printer technology!"};
     }
@@ -2502,7 +2518,7 @@ unsigned int Plater::priv::update_background_process(bool force_validation, bool
             if (apply_statuses[bed_index] != Print::ApplyStatus::APPLY_STATUS_UNCHANGED) {
                 s_print_statuses[bed_index] = PrintStatus::idle;
             }
-        } else if (printer_technology == ptSLA) {
+        } else if (is_resin_technology(printer_technology)) {
             if (apply_statuses[0] != Print::ApplyStatus::APPLY_STATUS_UNCHANGED) {
                 s_print_statuses[bed_index] = PrintStatus::idle;
             }
@@ -5932,11 +5948,16 @@ std::optional<wxString> Plater::check_output_path_has_error(const boost::filesys
 
 std::optional<fs::path> Plater::get_output_path(const std::string &start_dir, const fs::path &default_output_file) {
     const std::string ext = default_output_file.extension().string();
-    wxFileDialog dlg(this, (printer_technology() == ptFFF) ? _L("Save G-code file as:") : _L("Save SL1 / SL1S file as:"),
+    const bool is_dlp = printer_technology() == ptDLP;
+    const wxString title = printer_technology() == ptFFF ? _L("Save G-code file as:") :
+                           is_dlp ? _L("Save DLP layer archive as:") : _L("Save SL1 / SL1S file as:");
+    const wxString wildcard = printer_technology() == ptFFF ? GUI::file_wildcards(FT_GCODE, ext) :
+                              is_dlp ? _L("DLP layer archive (*.dlp)|*.dlp") :
+                                       GUI::sla_wildcards(active_sla_print().printer_config().sla_archive_format.value.c_str(), ext);
+    wxFileDialog dlg(this, title,
         start_dir,
         from_path(default_output_file.filename()),
-        printer_technology() == ptFFF ? GUI::file_wildcards(FT_GCODE, ext) :
-                                        GUI::sla_wildcards(active_sla_print().printer_config().sla_archive_format.value.c_str(), ext),
+        wildcard,
         wxFD_SAVE | wxFD_OVERWRITE_PROMPT
     );
 
@@ -5998,6 +6019,70 @@ void Plater::export_gcode(bool prefer_removable)
     export_gcode_to_path(output_path, [&](const bool path_on_removable_media){
         p->export_gcode(output_path, path_on_removable_media, PrintHostJob());
     });
+}
+
+void Plater::export_dlp_png_layers()
+{
+    if (p->model.objects.empty())
+        return;
+
+    // A newly loaded model may still have an FFF background-process update
+    // queued. The progress dialog pumps UI events, so letting that update run
+    // while the DLP exporter reads the live model can make Print::apply()
+    // compare two different model revisions. Stop it and slice a snapshot.
+    const bool background_update_was_scheduled = p->background_process_timer.IsRunning();
+    p->background_process_timer.Stop();
+    p->background_process.stop();
+    const Model export_model(p->model);
+
+    const auto restore_background_processing = [this, background_update_was_scheduled]() {
+        if (background_update_was_scheduled)
+            p->schedule_background_process();
+    };
+
+    wxFileDialog dialog(
+        this,
+        _L("Export DLP PNG layer folder"),
+        wxEmptyString,
+        "DLP_layers.dlp",
+        _L("DLP layer folder (*.dlp)|*.dlp"),
+        wxFD_SAVE | wxFD_OVERWRITE_PROMPT);
+    if (dialog.ShowModal() != wxID_OK) {
+        restore_background_processing();
+        return;
+    }
+
+    const fs::path output_path(into_path(dialog.GetPath()));
+    try {
+        const dlp::PrinterConfig printer {{1920, 1080}, 120.0, 67.5};
+        dlp::ProcessConfig process;
+        process.layer_height_mm = 0.05;
+
+        if (const std::string error = dlp::Print::validate(printer, process); ! error.empty())
+            throw std::invalid_argument(error);
+
+        wxProgressDialog progress(
+            _L("DLP PNG layer export"),
+            _L("Slicing model geometry..."),
+            100,
+            this,
+            wxPD_APP_MODAL | wxPD_AUTO_HIDE | wxPD_SMOOTH);
+        const dlp::ExportResult result = dlp::export_directory(
+            export_model, printer, process, output_path.string(), {}, {},
+            [&progress](double fraction, const std::string &message) {
+                progress.Update(static_cast<int>(std::clamp(fraction, 0.0, 1.0) * 100.0),
+                                from_u8(message));
+            });
+        if (result.layer_count == 0)
+            throw std::runtime_error("The model produced no DLP layers");
+
+        GUI::show_info(this,
+            wxString::Format(_L("DLP PNG layers were exported successfully to:\n%s"), dialog.GetPath()),
+            _L("DLP export complete"));
+    } catch (const std::exception &error) {
+        GUI::show_error(this, error.what());
+    }
+    restore_background_processing();
 }
 
 void Plater::export_gcode_to_path(
@@ -7877,6 +7962,7 @@ Print& Plater::active_fff_print() { return *p->fff_prints[s_multiple_beds.get_ac
 // For now, only use the first SLAPrint for all the beds - it means reslicing
 // everything when a bed is changed.
 SLAPrint& Plater::active_sla_print()  { return *p->sla_prints.front(); }
+DLPPrint& Plater::active_dlp_print()  { return *p->dlp_prints[s_multiple_beds.get_active_bed()]; }
 
 
 SuppressBackgroundProcessingUpdate::SuppressBackgroundProcessingUpdate() :

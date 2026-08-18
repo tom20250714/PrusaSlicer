@@ -847,6 +847,14 @@ void GUI_App::post_init()
     // Neither wxShowEvent nor wxWindowCreateEvent work reliably.
     if (this->get_preset_updater_wrapper()) { // G-Code Viewer does not initialize preset_updater.
         CallAfter([this] {
+#ifdef SLIC3R_DLP_ONLY
+            // Temporarily keep the startup preset unchanged. The DLP engine and
+            // built-in preset remain available, but automatically switching from
+            // an already initialized FFF workspace still enters legacy FFF-only UI
+            // paths. Stabilize the GUI first and re-enable this after the switch is
+            // exposed as an explicit, testable action.
+            return;
+#else
             // preset_updater->sync downloads profile updates and than via event checks updates and incompatible presets. We need to run it on startup.
             // start before cw so it is canceled by cw if needed?
             this->get_preset_updater_wrapper()->sync_preset_updater(this, preset_bundle);
@@ -859,6 +867,7 @@ void GUI_App::post_init()
             }  
             // app version check is asynchronous and triggers blocking dialog window, better call it last
             this->app_version_check(false);
+#endif
         });
     }
 
@@ -1565,8 +1574,14 @@ bool GUI_App::on_init_inner()
     }
     
     std::string delayed_error_load_presets;
+    // A DLP-only build must expose its built-in printer even before the user
+    // has installed any vendor profiles through the configuration wizard.
+#ifdef SLIC3R_DLP_ONLY
+    preset_bundle->set_default_suppressed(false);
+#else
     // Suppress the '- default -' presets.
     preset_bundle->set_default_suppressed(app_config->get_bool("no_defaults"));
+#endif
     try {
         // Enable all substitutions (in both user and system profiles), but log the substitutions in user profiles only.
         // If there are substitutions in system profiles, then a "reconfigure" event shall be triggered, which will force
@@ -3302,7 +3317,7 @@ Downloader* GUI_App::downloader()
 int GUI_App::extruders_cnt() const
 {
     const Preset& preset = preset_bundle->printers.get_selected_preset();
-    return preset.printer_technology() == ptSLA ? 1 :
+    return is_resin_technology(preset.printer_technology()) ? 1 :
            preset.config.option<ConfigOptionFloats>("nozzle_diameter")->values.size();
 }
 
@@ -3310,7 +3325,7 @@ int GUI_App::extruders_cnt() const
 int GUI_App::extruders_edited_cnt() const
 {
     const Preset& preset = preset_bundle->printers.get_edited_preset();
-    return preset.printer_technology() == ptSLA ? 1 :
+    return is_resin_technology(preset.printer_technology()) ? 1 :
            preset.config.option<ConfigOptionFloats>("nozzle_diameter")->values.size();
 }
 
@@ -3571,6 +3586,11 @@ void GUI_App::window_pos_sanitize(wxTopLevelWindow* window)
 
 bool GUI_App::config_wizard_startup()
 {
+#ifdef SLIC3R_DLP_ONLY
+    // The independent DLP engine ships with a usable built-in printer preset,
+    // so vendor profile installation is not required on first launch.
+    return false;
+#else
     if (!m_app_conf_exists || preset_bundle->printers.only_default_printers()) {
         run_wizard(ConfigWizard::RR_DATA_EMPTY);
         return true;
@@ -3591,6 +3611,7 @@ bool GUI_App::config_wizard_startup()
     }
 #endif
     return false;
+#endif
 }
 
 bool GUI_App::check_updates(const bool invoked_by_user)

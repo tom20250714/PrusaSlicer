@@ -43,6 +43,7 @@ class ModelObject;
 class ModelInstance;
 class Print;
 class SLAPrint;
+class DLPPrint;
 enum PrintObjectStep : unsigned int;
 enum SLAPrintObjectStep : unsigned int;
 enum class ConversionType : int;
@@ -107,6 +108,7 @@ public:
     
     Print& active_fff_print();
     SLAPrint& active_sla_print();
+    DLPPrint& active_dlp_print();
 
     std::vector<std::unique_ptr<Print>>& get_fff_prints();
     const std::vector<GCodeProcessorResult>& get_gcode_results() const;
@@ -228,6 +230,7 @@ public:
         const std::function<void()> &callable
     );
     void export_gcode(bool prefer_removable);
+    void export_dlp_png_layers();
     void export_all_gcodes(bool prefer_removable);
     void export_stl_obj(bool extended = false, bool selection_only = false);
     bool export_3mf(const boost::filesystem::path& output_path = boost::filesystem::path());

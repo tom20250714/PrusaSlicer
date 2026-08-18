@@ -1,0 +1,14 @@
+diff --git a/build_win.bat b/build_win.bat
+--- a/build_win.bat
++++ b/build_win.bat
+@@ -158,6 +158,10 @@ IF NOT EXIST "%MSVC_DIR%" (
+     @ECHO ERROR: Compatible Visual Studio installation not found. 1>&2
+     GOTO :HELP
+ )
++SET PS_VS_CMAKE=%MSVC_DIR%\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe
++IF EXIST "%PS_VS_CMAKE%" (
++    SET PS_CMAKE_EXE="%PS_VS_CMAKE%"
++)
+ CALL :RESOLVE_CMAKE_GENERATOR
+ IF "%PS_CMAKE_GENERATOR%" EQU "" GOTO :HELP
+ REM Give the user a chance to cancel if we found something odd.

@@ -1533,6 +1533,11 @@ void MainFrame::init_menubar_as_editor()
         append_submenu(fileMenu, import_menu, wxID_ANY, _L("&Import"), "");
 
         wxMenu* export_menu = new wxMenu();
+        append_menu_item(export_menu, wxID_ANY, _L("Export DLP PNG Layers") + dots,
+            _L("Slice the current plate with the independent DLP engine and export PNG layers"),
+            [this](wxCommandEvent&) { if (m_plater) m_plater->export_dlp_png_layers(); }, "export_gcode", nullptr,
+            [this](){ return can_export_model(); }, this);
+        export_menu->AppendSeparator();
         wxMenuItem* item_export_gcode = append_menu_item(export_menu, wxID_ANY, _L("Export &G-code") + dots + "\tCtrl+G", _L("Export current plate as G-code"),
             [this](wxCommandEvent&) { if (m_plater) m_plater->export_gcode(false); }, "export_gcode", nullptr,
             [this](){return can_export_gcode(); }, this);

@@ -137,6 +137,7 @@ bool BackgroundSlicingProcess::select_technology(PrinterTechnology tech)
 		switch (tech) {
 		case ptFFF: m_print = m_fff_print; break;
 		case ptSLA: m_print = m_sla_print; break;
+		case ptDLP: m_print = m_dlp_print; break;
         default: assert(false); break;
 		}
 		changed = true;
@@ -224,6 +225,22 @@ void BackgroundSlicingProcess::process_sla()
     }
 }
 
+void BackgroundSlicingProcess::process_dlp()
+{
+    assert(m_print == m_dlp_print);
+    m_dlp_print->process();
+    if (this->set_step_started(bspsGCodeFinalize)) {
+        if (!m_export_path.empty()) {
+            wxQueueEvent(GUI::wxGetApp().mainframe->m_plater, new wxCommandEvent(m_event_export_began_id));
+            m_dlp_print->export_print(m_export_path);
+            m_print->set_status(100, GUI::format(_L("DLP layer archive exported to %1%"), m_export_path));
+        } else {
+            m_print->set_status(100, _u8L("DLP slicing complete"));
+        }
+        this->set_step_done(bspsGCodeFinalize);
+    }
+}
+
 void BackgroundSlicingProcess::thread_proc()
 {
 	set_current_thread_name("slic3r_BgSlcPcs");
@@ -236,7 +253,7 @@ void BackgroundSlicingProcess::thread_proc()
 	TBBLocalesSetter setter;
 
 	assert(m_print != nullptr);
-	assert(m_print == m_fff_print || m_print == m_sla_print);
+	assert(m_print == m_fff_print || m_print == m_sla_print || m_print == m_dlp_print);
 	std::unique_lock<std::mutex> lck(m_mutex);
 	// Let the caller know we are ready to run the background processing task.
 	m_state = STATE_IDLE;
@@ -359,6 +376,7 @@ void BackgroundSlicingProcess::call_process(std::exception_ptr &ex) throw()
 		switch (m_print->technology()) {
 		case ptFFF: this->process_fff(); break;
 		case ptSLA: this->process_sla(); break;
+		case ptDLP: this->process_dlp(); break;
 		default: m_print->process(); break;
 		}
 	} catch (CanceledException& /* ex */) {
@@ -597,7 +615,12 @@ Print::ApplyStatus BackgroundSlicingProcess::apply(
     const DynamicPrintConfig *original_config
 ) {
     assert(m_print != nullptr);
-	assert(config.opt_enum<PrinterTechnology>("printer_technology") == m_print->technology());
+	const PrinterTechnology config_technology = config.opt_enum<PrinterTechnology>("printer_technology");
+	// A deferred GUI preset switch may deliver the new configuration before the
+	// plater has selected its matching print engine. Synchronize here instead of
+	// asserting on that short-lived ordering difference.
+	if (config_technology != m_print->technology())
+		this->select_technology(config_technology);
 	Print::ApplyStatus invalidated = m_print->apply(model, config, warnings, original_config);
 	if ((invalidated & PrintBase::APPLY_STATUS_INVALIDATED) != 0 && m_print->technology() == ptFFF &&
 		!m_fff_print->is_step_done(psGCodeExport)) {

@@ -1,0 +1,18 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -427,7 +427,13 @@ function(slic3r_remap_configs targets from_Cfg to_Cfg)
+ 
+         foreach(tgt ${targets})
+             if(TARGET ${tgt})
+-                set_target_properties(${tgt} PROPERTIES MAP_IMPORTED_CONFIG_${from_CFG} ${to_Cfg})
++                get_target_property(aliased_tgt ${tgt} ALIASED_TARGET)
++                if(aliased_tgt)
++                    set(remap_tgt ${aliased_tgt})
++                else()
++                    set(remap_tgt ${tgt})
++                endif()
++                set_target_properties(${remap_tgt} PROPERTIES MAP_IMPORTED_CONFIG_${from_CFG} ${to_Cfg})
+             endif()
+         endforeach()
+     endif()

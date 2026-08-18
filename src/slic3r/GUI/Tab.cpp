@@ -1137,7 +1137,7 @@ void Tab::on_value_change(const std::string& opt_key, const boost::any& value)
 
 // Show/hide the 'purging volumes' button
 void Tab::update_wiping_button_visibility() {
-    if (m_preset_bundle->printers.get_selected_preset().printer_technology() == ptSLA)
+    if (is_resin_technology(m_preset_bundle->printers.get_selected_preset().printer_technology()))
         return; // ys_FIXME
     bool wipe_tower_enabled = dynamic_cast<ConfigOptionBool*>(  (m_preset_bundle->prints.get_edited_preset().config  ).option("wipe_tower"))->value;
     bool multiple_extruders = dynamic_cast<ConfigOptionFloats*>((m_preset_bundle->printers.get_edited_preset().config).option("nozzle_diameter"))->values.size() > 1;
@@ -1801,7 +1801,7 @@ void TabPrint::update_description_lines()
 {
     Tab::update_description_lines();
 
-    if (m_preset_bundle->printers.get_selected_preset().printer_technology() == ptSLA)
+    if (is_resin_technology(m_preset_bundle->printers.get_selected_preset().printer_technology()))
         return;
 
     if (m_active_page && m_active_page->title() == "Layers and perimeters" && 
@@ -1837,7 +1837,7 @@ void TabPrint::toggle_options()
 
 void TabPrint::update()
 {
-    if (m_preset_bundle->printers.get_selected_preset().printer_technology() == ptSLA)
+    if (is_resin_technology(m_preset_bundle->printers.get_selected_preset().printer_technology()))
         return; // ys_FIXME
 
     m_update_cnt++;
@@ -2147,13 +2147,17 @@ void TabFilament::create_extruder_combobox()
 
 void TabFilament::update_extruder_combobox_visibility()
 {
+    if (is_resin_technology(m_preset_bundle->printers.get_edited_preset().printer_technology())) {
+        m_extruders_cb->Hide();
+        return;
+    }
     const size_t extruder_cnt = static_cast<const ConfigOptionFloats*>(m_preset_bundle->printers.get_edited_preset().config.option("nozzle_diameter"))->values.size();
     m_extruders_cb->Show(extruder_cnt > 1);
 }
 
 void TabFilament::update_extruder_combobox()
 {
-    const size_t extruder_cnt = m_preset_bundle->printers.get_selected_preset().printer_technology() == ptSLA ? m_extruders_cb->GetCount() :
+    const size_t extruder_cnt = is_resin_technology(m_preset_bundle->printers.get_selected_preset().printer_technology()) ? m_extruders_cb->GetCount() :
                                 static_cast<const ConfigOptionFloats*>(m_preset_bundle->printers.get_edited_preset().config.option("nozzle_diameter"))->values.size();
 
     if (extruder_cnt != m_extruders_cb->GetCount()) {
@@ -2495,7 +2499,7 @@ void TabFilament::toggle_options()
 
 void TabFilament::update()
 {
-    if (m_preset_bundle->printers.get_selected_preset().printer_technology() == ptSLA)
+    if (is_resin_technology(m_preset_bundle->printers.get_selected_preset().printer_technology()))
         return; // ys_FIXME
 
     m_update_cnt++;
@@ -2637,15 +2641,16 @@ void TabPrinter::build()
     // For DiffPresetDialog we use options list which is saved in Searcher class.
     // Options for the Searcher is added in the moment of pages creation.
     // So, build first of all printer pages for non-selected printer technology...
-    std::string def_preset_name = "- default " + std::string(m_printer_technology == ptSLA ? "FFF" : "SLA") + " -";
+    const bool resin_technology = is_resin_technology(m_printer_technology);
+    std::string def_preset_name = "- default " + std::string(resin_technology ? "FFF" : "SLA") + " -";
     m_config = &m_presets->find_preset(def_preset_name)->config;
-    m_printer_technology == ptSLA ? build_fff() : build_sla();
-    if (m_printer_technology == ptSLA)
+    resin_technology ? build_fff() : build_sla();
+    if (resin_technology)
         m_extruders_count_old = 0;// revert this value 
 
     // ... and than for selected printer technology
     load_initial_data();
-    m_printer_technology == ptSLA ? build_sla() : build_fff();
+    resin_technology ? build_sla() : build_fff();
 }
 
 void TabPrinter::build_print_host_upload_group(Page* page)
@@ -3615,7 +3620,7 @@ void TabPrinter::clear_pages()
 
 void TabPrinter::toggle_options()
 {
-    if (!m_active_page || m_presets->get_edited_preset().printer_technology() == ptSLA)
+    if (!m_active_page || is_resin_technology(m_presets->get_edited_preset().printer_technology()))
         return;
 
     const GCodeFlavor flavor = m_config->option<ConfigOptionEnum<GCodeFlavor>>("gcode_flavor")->value;
@@ -3816,12 +3821,19 @@ void Tab::load_current_preset()
                     }
                     if (tab->supports_printer_technology(printer_technology))
                     {
-                        dynamic_cast<TopBar*>(wxGetApp().tab_panel())->InsertNewPage(wxGetApp().tab_panel()->FindPage(this), tab, tab->title(),"");
+                        // A tab may already have been inserted while the GUI was being
+                        // initialized. Avoid adding it twice during the deferred DLP switch.
+                        if (wxGetApp().tab_panel()->FindPage(tab) == wxNOT_FOUND)
+                            dynamic_cast<TopBar*>(wxGetApp().tab_panel())->InsertNewPage(wxGetApp().tab_panel()->FindPage(this), tab, tab->title(),"");
                     }
                     else {
                         int page_id = wxGetApp().tab_panel()->FindPage(tab);
-                        wxGetApp().tab_panel()->GetPage(page_id)->Show(false);
-                        wxGetApp().tab_panel()->RemovePage(page_id);
+                        // Some FFF-only tabs may not be present in a DLP-only startup.
+                        // Calling GetPage(wxNOT_FOUND) causes an access violation.
+                        if (page_id != wxNOT_FOUND) {
+                            wxGetApp().tab_panel()->GetPage(page_id)->Show(false);
+                            wxGetApp().tab_panel()->RemovePage(page_id);
+                        }
                     }
                 }
                 static_cast<TabPrinter*>(this)->m_printer_technology = printer_technology;
@@ -3974,7 +3986,7 @@ bool Tab::select_preset(std::string preset_name, bool delete_current /*=false*/,
 		const PresetWithVendorProfile new_printer_preset_with_vendor_profile = m_presets->get_preset_with_vendor_profile(new_printer_preset);
         PrinterTechnology    old_printer_technology = m_presets->get_edited_preset().printer_technology();
         PrinterTechnology    new_printer_technology = new_printer_preset.printer_technology();
-        if (new_printer_technology == ptSLA && old_printer_technology == ptFFF && !wxGetApp().may_switch_to_SLA_preset(_L("New printer preset selected")))
+        if (is_resin_technology(new_printer_technology) && old_printer_technology == ptFFF && !wxGetApp().may_switch_to_SLA_preset(_L("New printer preset selected")))
             canceled = true;
         else {
             struct PresetUpdate {
@@ -3991,8 +4003,12 @@ bool Tab::select_preset(std::string preset_name, bool delete_current /*=false*/,
                 { Preset::Type::TYPE_SLA_MATERIAL,  &m_preset_bundle->sla_materials,ptSLA }
             };
             for (PresetUpdate &pu : updates) {
-                pu.old_preset_dirty = (old_printer_technology == pu.technology) && pu.presets->current_is_dirty();
-                pu.new_preset_compatible = (new_printer_technology == pu.technology) && is_compatible_with_printer(pu.presets->get_edited_preset_with_vendor_profile(), new_printer_preset_with_vendor_profile);
+                const bool old_technology_matches = old_printer_technology == pu.technology ||
+                    (pu.technology == ptSLA && is_resin_technology(old_printer_technology));
+                const bool new_technology_matches = new_printer_technology == pu.technology ||
+                    (pu.technology == ptSLA && is_resin_technology(new_printer_technology));
+                pu.old_preset_dirty = old_technology_matches && pu.presets->current_is_dirty();
+                pu.new_preset_compatible = new_technology_matches && is_compatible_with_printer(pu.presets->get_edited_preset_with_vendor_profile(), new_printer_preset_with_vendor_profile);
                 bool force_update_edited_preset = false;
                 if (pu.tab_type == Preset::TYPE_FILAMENT && pu.new_preset_compatible) {
                     // check if edited preset will be still correct after selection new printer 
@@ -4008,7 +4024,8 @@ bool Tab::select_preset(std::string preset_name, bool delete_current /*=false*/,
             if (!canceled) {
                 for (PresetUpdate &pu : updates) {
                     // The preset will be switched to a different, compatible preset, or the '-- default --'.
-                    if (pu.technology == new_printer_technology)
+                    if (pu.technology == new_printer_technology ||
+                        (pu.technology == ptSLA && is_resin_technology(new_printer_technology)))
                         m_dependent_tabs.emplace_back(pu.tab_type);
                     if (pu.old_preset_dirty && !pu.new_preset_compatible)
                         pu.presets->discard_current_changes();
@@ -4087,7 +4104,7 @@ bool Tab::select_preset(std::string preset_name, bool delete_current /*=false*/,
             const PrinterTechnology printer_technology = m_presets->get_edited_preset().printer_technology();
             if (printer_technology == ptFFF && m_dependent_tabs.front() != Preset::Type::TYPE_PRINT)
                 m_dependent_tabs = { Preset::Type::TYPE_PRINT, Preset::Type::TYPE_FILAMENT };
-            else if (printer_technology == ptSLA && m_dependent_tabs.front() != Preset::Type::TYPE_SLA_PRINT)
+            else if (is_resin_technology(printer_technology) && m_dependent_tabs.front() != Preset::Type::TYPE_SLA_PRINT)
                 m_dependent_tabs = { Preset::Type::TYPE_SLA_PRINT, Preset::Type::TYPE_SLA_MATERIAL };
         }
 
@@ -5110,7 +5127,7 @@ wxSizer* TabPrinter::create_bed_shape_widget(wxWindow* parent)
 void TabPrinter::cache_extruder_cnt(const DynamicPrintConfig* config/* = nullptr*/)
 {
     const DynamicPrintConfig& cached_config = config ? *config : m_presets->get_edited_preset().config;
-    if (Preset::printer_technology(cached_config) == ptSLA)
+    if (is_resin_technology(Preset::printer_technology(cached_config)))
         return;
 
     // get extruders count 
@@ -5120,7 +5137,7 @@ void TabPrinter::cache_extruder_cnt(const DynamicPrintConfig* config/* = nullptr
 
 bool TabPrinter::apply_extruder_cnt_from_cache()
 {
-    if (m_presets->get_edited_preset().printer_technology() == ptSLA)
+    if (is_resin_technology(m_presets->get_edited_preset().printer_technology()))
         return false;
 
     if (m_cache_extruder_count > 0) {

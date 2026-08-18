@@ -36,6 +36,7 @@
 #include "3DScene.hpp"
 #include "BackgroundSlicingProcess.hpp"
 #include "GLShader.hpp"
+#include "GLTexture.hpp"
 #include "GUI.hpp"
 #include "Tab.hpp"
 #include "GUI_Preview.hpp"
@@ -73,6 +74,7 @@
 // Print now includes tbb, and tbb includes Windows. This breaks compilation of wxWidgets if included before wx.
 #include "libslic3r/Print.hpp"
 #include "libslic3r/SLAPrint.hpp"
+#include "libslic3r/DLPPrint.hpp"
 
 #include "wxExtensions.hpp"
 
@@ -1355,6 +1357,8 @@ GLCanvas3D::GLCanvas3D(wxGLCanvas *canvas, Bed3D &bed)
 
 GLCanvas3D::~GLCanvas3D()
 {
+    if (m_dlp_layer_texture_id != 0)
+        glsafe(::glDeleteTextures(1, &m_dlp_layer_texture_id));
     reset_volumes();
 }
 
@@ -6372,6 +6376,8 @@ void GLCanvas3D::_render_overlays()
 {
     glsafe(::glDisable(GL_DEPTH_TEST));
 
+    _render_dlp_layer_overlay();
+
     // main toolbar and undoredo toolbar need to be both updated before rendering because both their sizes are needed
     // to correctly place them
     _check_and_update_toolbar_icon_scale();
@@ -6398,6 +6404,66 @@ void GLCanvas3D::_render_overlays()
             }
     }
     m_labels.render(sorted_instances);
+}
+
+void GLCanvas3D::_render_dlp_layer_overlay()
+{
+    if (current_printer_technology() != ptDLP || m_process == nullptr)
+        return;
+
+    const DLPPrint *print = m_process->dlp_print();
+    if (print == nullptr || !print->finished() || m_layer_slider_index < 0 ||
+        m_layer_slider_index >= int(print->raster_layers().size()))
+        return;
+
+    const dlp::RasterLayer &layer = print->raster_layers()[m_layer_slider_index];
+    const size_t expected_pixels = size_t(layer.resolution.width_px) * size_t(layer.resolution.height_px);
+    if (layer.resolution.width_px == 0 || layer.resolution.height_px == 0 ||
+        layer.grayscale.size() != expected_pixels)
+        return;
+
+    if (m_dlp_layer_texture_id == 0)
+        glsafe(::glGenTextures(1, &m_dlp_layer_texture_id));
+
+    if (m_dlp_texture_layer_index != m_layer_slider_index ||
+        m_dlp_texture_revision != print->raster_revision()) {
+        std::vector<uint8_t> rgba(layer.grayscale.size() * 4);
+        for (size_t i = 0; i < layer.grayscale.size(); ++i) {
+            const uint8_t value = layer.grayscale[i];
+            rgba[4 * i    ] = value;
+            rgba[4 * i + 1] = value;
+            rgba[4 * i + 2] = value;
+            rgba[4 * i + 3] = 255;
+        }
+
+        glsafe(::glBindTexture(GL_TEXTURE_2D, m_dlp_layer_texture_id));
+        glsafe(::glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
+        glsafe(::glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
+        glsafe(::glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE));
+        glsafe(::glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
+        GLint unpack_alignment = 4;
+        glsafe(::glGetIntegerv(GL_UNPACK_ALIGNMENT, &unpack_alignment));
+        glsafe(::glPixelStorei(GL_UNPACK_ALIGNMENT, 1));
+        glsafe(::glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8,
+            GLsizei(layer.resolution.width_px), GLsizei(layer.resolution.height_px),
+            0, GL_RGBA, GL_UNSIGNED_BYTE, rgba.data()));
+        glsafe(::glPixelStorei(GL_UNPACK_ALIGNMENT, unpack_alignment));
+        glsafe(::glBindTexture(GL_TEXTURE_2D, 0));
+        m_dlp_texture_layer_index = m_layer_slider_index;
+        m_dlp_texture_revision = print->raster_revision();
+    }
+
+    const Size canvas_size = get_canvas_size();
+    const float canvas_aspect = float(std::max(1, canvas_size.get_width())) /
+                                float(std::max(1, canvas_size.get_height()));
+    const float image_aspect = float(layer.resolution.width_px) / float(layer.resolution.height_px);
+    float half_width = 0.78f;
+    float half_height = half_width * canvas_aspect / image_aspect;
+    if (half_height > 0.78f) {
+        half_height = 0.78f;
+        half_width = half_height * image_aspect / canvas_aspect;
+    }
+    GLTexture::render_texture(m_dlp_layer_texture_id, -half_width, half_width, -half_height, half_height);
 }
 
 #define use_scrolling 1

@@ -1,0 +1,35 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -207,7 +207,3 @@ if(WIN32)
+     endif()
+ 
+-    # FindOpenVDB may discover MSYS2's newer vdb_print and infer its ABI for
+-    # the bundled OpenVDB 8 library.  Do not mix that executable into MSVC.
+-    set(OPENVDB_PRINT "OPENVDB_PRINT-NOTFOUND" CACHE FILEPATH "OpenVDB print tool" FORCE)
+-
+     if(EXISTS "${CMAKE_SOURCE_DIR}/scripts/hooks/pre-commit"  AND EXISTS "${CMAKE_SOURCE_DIR}/.git")
+        if(IS_DIRECTORY "${CMAKE_SOURCE_DIR}/.git")
+             message(STATUS ".git: directory")
+diff --git a/cmake/modules/FindOpenVDB.cmake b/cmake/modules/FindOpenVDB.cmake
+--- a/cmake/modules/FindOpenVDB.cmake
++++ b/cmake/modules/FindOpenVDB.cmake
+@@ -318,9 +318,14 @@ find_package_handle_standard_args(OpenVDB
+ # Set the ABI number the library was built against. Uses vdb_print
+ find_program(OPENVDB_PRINT vdb_print PATHS ${OpenVDB_INCLUDE_DIR} )
+ 
+-OPENVDB_ABI_VERSION_FROM_PRINT(
+-  "${OPENVDB_PRINT}"
+-  ABI OpenVDB_ABI
+-)
++if(MSVC AND OPENVDB_PRINT MATCHES "[/\\\\]msys64[/\\\\]mingw64[/\\\\]")
++  # Never infer the bundled MSVC library ABI from an unrelated MSYS2 tool.
++  set(OpenVDB_ABI "${OpenVDB_MAJOR_VERSION}")
++else()
++  OPENVDB_ABI_VERSION_FROM_PRINT(
++    "${OPENVDB_PRINT}"
++    ABI OpenVDB_ABI
++  )
++endif()
+ 
+ if(NOT OpenVDB_FIND_QUIETLY)

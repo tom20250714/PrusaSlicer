@@ -1,0 +1,19 @@
+diff --git a/deps/OpenSSL/OpenSSL.cmake b/deps/OpenSSL/OpenSSL.cmake
+--- a/deps/OpenSSL/OpenSSL.cmake
++++ b/deps/OpenSSL/OpenSSL.cmake
+@@ -15,13 +15,12 @@ endif()
+ if(WIN32)
+     find_program(OPENSSL_PERL_EXECUTABLE
+         NAMES perl
+         HINTS
+-            "$ENV{ProgramFiles}/Git/usr/bin"
+-            "C:/msys64/usr/bin"
++            "C:/Strawberry/perl/bin"
+         NO_DEFAULT_PATH
+     )
+     if(NOT OPENSSL_PERL_EXECUTABLE)
+-        message(FATAL_ERROR "Perl is required to configure OpenSSL on Windows")
++        message(FATAL_ERROR "Native Windows Perl is required to configure OpenSSL. Install Strawberry Perl.")
+     endif()
+     set(_conf_cmd "${OPENSSL_PERL_EXECUTABLE}" Configure)
+     set(_cross_comp_prefix_line "")

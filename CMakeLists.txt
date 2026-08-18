@@ -9,7 +9,24 @@
 #/|/ PrusaSlicer is released under the terms of the AGPLv3 or higher
 #/|/
 cmake_minimum_required(VERSION 3.13)
+
+# CMake 4 validates add_custom_command(TARGET) more strictly. Keep the
+# behavior expected by this PrusaSlicer branch until those commands are
+# migrated to the new signature.
+if (POLICY CMP0175)
+    cmake_policy(SET CMP0175 OLD)
+endif ()
+if (POLICY CMP0091)
+    cmake_policy(SET CMP0091 NEW)
+endif ()
 project(PrusaSlicer)
+
+# CMake/Visual Studio 2026 may leave RuntimeLibrary unspecified, which the
+# v145 toolset resolves to the static CRT. The prebuilt Windows dependencies
+# use the DLL CRT, so make the ABI choice explicit for every application target.
+if (MSVC)
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
+endif ()
 
 include("version.inc")
 include(GNUInstallDirs)
@@ -43,6 +60,18 @@ option(SLIC3R_UBSAN             "Enable UBSan on Clang and GCC" 0)
 option(SLIC3R_ENABLE_FORMAT_STEP "Enable compilation of STEP file support" ON)
 option(SLIC3R_LOG_TO_FILE       "Enable logging into file")
 option(SLIC3R_REPO_URL          "Preset repo URL")
+option(SLIC3R_DLP_CORE_ONLY     "Build only the independent DLP core and its tests" OFF)
+option(SLIC3R_DLP_ONLY          "Start the GUI directly in the built-in DLP workflow" ON)
+
+if (SLIC3R_DLP_ONLY)
+    add_compile_definitions(SLIC3R_DLP_ONLY)
+endif ()
+
+if (SLIC3R_DLP_CORE_ONLY)
+    enable_testing()
+    add_subdirectory(cmake/dlp_core)
+    return()
+endif ()
 
 # SLIC3R_OPENGL_ES can be enabled only if SLIC3R_GUI is enabled.
 CMAKE_DEPENDENT_OPTION(SLIC3R_OPENGL_ES "Compile PrusaSlicer targeting OpenGL ES" OFF "SLIC3R_GUI" OFF)

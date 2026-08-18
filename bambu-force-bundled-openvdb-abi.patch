@@ -1,0 +1,14 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -211,9 +211,7 @@ if(WIN32)
+ 
+     # FindOpenVDB may discover MSYS2's newer vdb_print and infer its ABI for
+     # the bundled OpenVDB 8 library.  Do not mix that executable into MSVC.
+-    if(OPENVDB_PRINT MATCHES "^C:/msys64/mingw64/")
+-        set(OPENVDB_PRINT "OPENVDB_PRINT-NOTFOUND" CACHE FILEPATH "OpenVDB print tool" FORCE)
+-    endif()
++    set(OPENVDB_PRINT "OPENVDB_PRINT-NOTFOUND" CACHE FILEPATH "OpenVDB print tool" FORCE)
+ 
+     if(EXISTS "${CMAKE_SOURCE_DIR}/scripts/hooks/pre-commit"  AND EXISTS "${CMAKE_SOURCE_DIR}/.git")
+        if(IS_DIRECTORY "${CMAKE_SOURCE_DIR}/.git")

@@ -1,0 +1,5 @@
+diff --git a/src/slic3r/GUI/Plater.cpp b/src/slic3r/GUI/Plater.cpp
+--- a/src/slic3r/GUI/Plater.cpp
++++ b/src/slic3r/GUI/Plater.cpp
+@@ -21876 +21876,0 @@
+-        wxGetApp().app_config->update_last_dir(into_u8(output_dialog.GetPath()));

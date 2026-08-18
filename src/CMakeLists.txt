@@ -162,7 +162,8 @@ if (SLIC3R_GUI)
     target_link_libraries(PrusaSlicer PRIVATE libslic3r_gui)
     if (MSVC)
         # Generate debug symbols even in release mode.
-        target_link_options(PrusaSlicer PUBLIC "$<$<CONFIG:RELEASE>:/DEBUG>")
+        target_link_options(PrusaSlicer PUBLIC "$<$<OR:$<CONFIG:RELEASE>,$<CONFIG:RELWITHDEBINFO>>:/DEBUG>")
+        target_link_options(PrusaSlicer PRIVATE "$<$<CONFIG:RELWITHDEBINFO>:/MAP:${CMAKE_CURRENT_BINARY_DIR}/RelWithDebInfo/PrusaSlicer.map>")
         target_link_libraries(PrusaSlicer PRIVATE user32.lib Setupapi.lib)
     elseif (MINGW)
         target_link_libraries(PrusaSlicer PRIVATE ws2_32 uxtheme setupapi)
@@ -213,6 +214,12 @@ if (WIN32)
     add_dependencies(PrusaSlicer_app_gcodeviewer PrusaSlicer)
     set_target_properties(PrusaSlicer_app_gcodeviewer PROPERTIES OUTPUT_NAME "prusa-gcodeviewer")
     target_link_libraries(PrusaSlicer_app_gcodeviewer PRIVATE boost_headeronly)
+
+    if (MSVC)
+        target_compile_options(PrusaSlicer_app_gui PRIVATE /EHsc)
+        target_compile_options(PrusaSlicer_app_console PRIVATE /EHsc)
+        target_compile_options(PrusaSlicer_app_gcodeviewer PRIVATE /EHsc)
+    endif ()
 endif ()
 
 # Link the resources dir to where Slic3r GUI expects it

@@ -1219,7 +1219,11 @@ const Preset* PresetCollection::get_selected_preset_parent() const
     if (inherits.empty()) {
         if (selected_preset.is_external)
             return nullptr;
-        preset = &this->default_preset(m_type == Preset::Type::TYPE_PRINTER && edited_preset.printer_technology() == ptSLA ? 1 : 0);
+        size_t default_idx = 0;
+        if (m_type == Preset::Type::TYPE_PRINTER)
+            default_idx = edited_preset.printer_technology() == ptDLP ? 2 :
+                          edited_preset.printer_technology() == ptSLA ? 1 : 0;
+        preset = &this->default_preset(default_idx);
     } else
         preset = this->find_preset(inherits, false);
     if (preset == nullptr) {

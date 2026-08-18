@@ -551,7 +551,7 @@ void PresetArchiveDatabase::load_app_manifest_json()
                 if (const auto used = subtree.second.get_optional<bool>("has_installed_printers"); used) {
                     m_has_installed_printer_repositories_uuid[uuid] = extracted && *used;
                 } else {
-                    assert(false);
+                    BOOST_LOG_TRIVIAL(info) << "Archive repository manifest has no has_installed_printers flag; using false.";
                     m_has_installed_printer_repositories_uuid[uuid] = false;
                 }
 				m_archive_repositories.emplace_back(std::make_unique<LocalArchiveRepository>(std::move(uuid), std::move(manifest), extracted));
@@ -577,7 +577,7 @@ void PresetArchiveDatabase::load_app_manifest_json()
             if (const auto used = subtree.second.get_optional<bool>("has_installed_printers"); used) {
                 m_has_installed_printer_repositories_uuid[uuid] = *used;
             } else {
-                assert(false);
+                BOOST_LOG_TRIVIAL(info) << "Archive repository manifest has no has_installed_printers flag; using false.";
                 m_has_installed_printer_repositories_uuid[uuid] = false;
             }
 			m_archive_repositories.emplace_back(std::make_unique<OnlineArchiveRepository>(std::move(uuid), std::move(manifest)));

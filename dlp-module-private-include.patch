@@ -1,0 +1,6 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -16 +16 @@
+-    target_include_directories(${HOST_TARGET} PUBLIC
++    target_include_directories(${HOST_TARGET} PRIVATE

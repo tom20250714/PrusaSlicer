@@ -84,6 +84,9 @@ bool write_rgb_to_file(const std::string &file_name_utf8, size_t width, size_t h
 bool write_gray_to_file(const char *file_name_utf8, size_t width, size_t height, const uint8_t *data_gray);
 bool write_gray_to_file(const std::string &file_name_utf8, size_t width, size_t height, const uint8_t *data_gray);
 bool write_gray_to_file(const std::string &file_name_utf8, size_t width, size_t height, const std::vector<uint8_t> &data_gray);
+// Low-compression, no-filter PNG writer for high-volume DLP mask export.
+bool write_gray_to_file_fast(const std::string &file_name_utf8, size_t width, size_t height,
+                             const std::vector<uint8_t> &data_gray);
 
 // Scaled variants are mostly useful for debugging purposes, for example to export images of low resolution distance fileds.
 // Scaling is done by multiplying rows and columns without any smoothing to emphasise the original pixels.

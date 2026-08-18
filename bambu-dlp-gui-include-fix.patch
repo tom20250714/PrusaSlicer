@@ -1,0 +1,15 @@
+diff --git a/external/dlp-engine/CMakeLists.txt b/external/dlp-engine/CMakeLists.txt
+--- a/external/dlp-engine/CMakeLists.txt
++++ b/external/dlp-engine/CMakeLists.txt
+@@ -16,2 +16,2 @@ function(dlp_engine_attach HOST_TARGET HOST_SOURCE_DIR)
+-    target_include_directories(${HOST_TARGET} PUBLIC
++    target_include_directories(${HOST_TARGET} PRIVATE
+         ${HOST_SOURCE_DIR}
+diff --git a/src/slic3r/GUI/Plater.cpp b/src/slic3r/GUI/Plater.cpp
+--- a/src/slic3r/GUI/Plater.cpp
++++ b/src/slic3r/GUI/Plater.cpp
+@@ -65,3 +65,3 @@
+ #include "libslic3r/Format/STEP.hpp"
+ #include "libslic3r/Format/AMF.hpp"
+-#include "libslic3r/DLP/DLPPrint.hpp"
++#include "../../../external/dlp-engine/src/libslic3r/DLP/DLPPrint.hpp"

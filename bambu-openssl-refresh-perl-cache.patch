@@ -1,0 +1,11 @@
+diff --git a/deps/OpenSSL/OpenSSL.cmake b/deps/OpenSSL/OpenSSL.cmake
+--- a/deps/OpenSSL/OpenSSL.cmake
++++ b/deps/OpenSSL/OpenSSL.cmake
+@@ -13,6 +13,7 @@ else()
+ endif()
+ 
+ if(WIN32)
++    unset(OPENSSL_PERL_EXECUTABLE CACHE)
+     find_program(OPENSSL_PERL_EXECUTABLE
+         NAMES perl
+         HINTS

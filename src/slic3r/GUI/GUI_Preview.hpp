@@ -170,6 +170,7 @@ private:
 
     void load_print_as_fff(bool keep_z_range = false);
     void load_print_as_sla();
+    void load_print_as_dlp();
 
     void on_layers_slider_scroll_changed();
     void on_moves_slider_scroll_changed();

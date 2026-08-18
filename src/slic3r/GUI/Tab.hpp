@@ -589,7 +589,7 @@ public:
 	void		clear_pages() override;
 	void        msw_rescale() override;
 	void		sys_color_changed() override;
-	bool 		supports_printer_technology(const PrinterTechnology tech) const override { return tech == ptSLA; }
+	bool 		supports_printer_technology(const PrinterTechnology tech) const override { return is_resin_technology(tech); }
 	void		update_sla_prusa_specific_visibility() override;
     void		update_description_lines() override;
 };
@@ -614,7 +614,7 @@ public:
 	void		toggle_options() override;
     void		update() override;
 	void		clear_pages() override;
-	bool 		supports_printer_technology(const PrinterTechnology tech) const override { return tech == ptSLA; }
+	bool 		supports_printer_technology(const PrinterTechnology tech) const override { return is_resin_technology(tech); }
 };
 
 } // GUI

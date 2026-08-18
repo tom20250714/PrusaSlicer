@@ -71,7 +71,8 @@ CONFIG_OPTION_ENUM_DEFINE_STATIC_MAPS(ArcFittingType)
 
 static t_config_enum_values s_keys_map_PrinterTechnology {
     { "FFF",            ptFFF },
-    { "SLA",            ptSLA }
+    { "SLA",            ptSLA },
+    { "DLP",            ptDLP }
 };
 CONFIG_OPTION_ENUM_DEFINE_STATIC_MAPS(PrinterTechnology)
 
@@ -398,7 +399,7 @@ void PrintConfigDef::init_common_params()
     def = this->add("printer_technology", coEnum);
     def->label = L("Printer technology");
     def->tooltip = L("Printer technology");
-    def->set_enum<PrinterTechnology>({ "FFF", "SLA" });
+    def->set_enum<PrinterTechnology>({ "FFF", "SLA", "DLP" });
     def->set_default_value(new ConfigOptionEnum<PrinterTechnology>(ptFFF));
 
     def = this->add("bed_shape", coPoints);
@@ -5461,7 +5462,7 @@ double min_object_distance(const ConfigBase &cfg)
 
     double ret = 0.;
 
-    if (printer_technology == ptSLA)
+    if (is_resin_technology(printer_technology))
         ret = 6.;
     else {
         auto ecr_opt = cfg.option<ConfigOptionFloat>("extruder_clearance_radius");
@@ -5754,6 +5755,11 @@ std::string DynamicPrintConfig::validate()
         // Verify this print options through the FullPrintConfig.
         return Slic3r::validate(fpc);
     }
+    case ptDLP:
+        // DLP options are validated by the independent DLP engine. Keeping
+        // this branch explicit prevents DLP from silently falling through to
+        // the legacy SLA validation path as that path evolves.
+        return std::string();
     default:
         //FIXME no validation on SLA data?
         return std::string();

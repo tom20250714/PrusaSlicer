@@ -344,6 +344,18 @@ set(SLIC3R_SOURCES
     SLAPrintSteps.cpp
     SLAPrintSteps.hpp
     SLAPrint.hpp
+    DLP/DLPPrint.cpp
+    DLP/DLPPrint.hpp
+    DLPPrint.cpp
+    DLPPrint.hpp
+    DLP/DLPGeometrySlicer.cpp
+    DLP/DLPGeometrySlicer.hpp
+    DLP/DLPRasterizer.cpp
+    DLP/DLPRasterizer.hpp
+    DLP/DLPDirectoryArchive.cpp
+    DLP/DLPDirectoryArchive.hpp
+    DLP/DLPBinarySTL.cpp
+    DLP/DLPBinarySTL.hpp
     Slicing.cpp
     Slicing.hpp
     SlicesToTriangleMesh.hpp
@@ -576,6 +588,9 @@ set(CGAL_DO_NOT_WARN_ABOUT_CMAKE_BUILD_TYPE ON CACHE BOOL "" FORCE)
 
 cmake_policy(PUSH)
 cmake_policy(SET CMP0011 NEW)
+# The Windows dependency bundle ships GMP's C interface only. Do not let an
+# unrelated MSYS2 gmpxx.h discovered through PATH leak into the MSVC target.
+set(CGAL_WITH_GMPXX OFF CACHE BOOL "Use GMP C++ wrapper types in CGAL" FORCE)
 find_package(CGAL REQUIRED)
 cmake_policy(POP)
 
@@ -590,6 +605,9 @@ add_library(libslic3r_cgal STATIC
 )
 target_include_directories(libslic3r_cgal PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 target_include_directories(libslic3r_cgal PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)
+if (MSVC)
+    target_compile_options(libslic3r_cgal PRIVATE /EHsc)
+endif ()
 
 # Reset compile options of libslic3r_cgal. Despite it being linked privately, CGAL options
 # (-frounding-math) still propagate to dependent libs which is not desired.

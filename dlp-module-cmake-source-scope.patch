@@ -1,0 +1,14 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -13,4 +13,9 @@ function(dlp_engine_attach HOST_TARGET HOST_SOURCE_DIR)
+         message(FATAL_ERROR "DLP host target does not exist: ${HOST_TARGET}")
+     endif ()
+-    target_sources(${HOST_TARGET} PRIVATE ${DLP_ENGINE_SOURCES})
++    target_sources(${HOST_TARGET} PRIVATE
++        ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/src/libslic3r/DLP/DLPPrint.cpp
++        ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/src/libslic3r/DLP/DLPGeometrySlicer.cpp
++        ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/src/libslic3r/DLP/DLPRasterizer.cpp
++        ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/src/libslic3r/DLP/DLPDirectoryArchive.cpp
++    )
+     target_include_directories(${HOST_TARGET} PRIVATE

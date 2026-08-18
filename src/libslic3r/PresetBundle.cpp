@@ -84,7 +84,9 @@ PresetBundle::PresetBundle() :
 
     this->printers.add_default_preset(Preset::sla_printer_options(), static_cast<const SLAMaterialConfig&>(SLAFullPrintConfig::defaults()), "- default SLA -");
     this->printers.preset(1).printer_technology_ref() = ptSLA;
-    for (size_t i = 0; i < 2; ++ i) {
+    this->printers.add_default_preset(Preset::sla_printer_options(), static_cast<const SLAMaterialConfig&>(SLAFullPrintConfig::defaults()), "- default DLP -");
+    this->printers.preset(2).printer_technology_ref() = ptDLP;
+    for (size_t i = 0; i < 3; ++ i) {
 		// The following ugly switch is to avoid printers.preset(0) to return the edited instance, as the 0th default is the current one.
 		Preset &preset = this->printers.default_preset(i);
         for (const char *key : { 
@@ -670,7 +672,14 @@ void PresetBundle::load_selections(AppConfig &config, const PresetPreferences& p
     const Preset *initial_printer = printers.find_preset(initial_printer_profile_name);
     // If executed due to a Config Wizard update, preferred_printer contains the first newly installed printer, otherwise nullptr.
     const Preset *preferred_printer = printers.find_system_preset_by_model_and_variant(preferred_selection.printer_model_id, preferred_selection.printer_variant);
+#ifdef SLIC3R_DLP_ONLY
+    // Temporary stabilization mode: a previous crashing run may have persisted
+    // the built-in DLP preset. Start from the native FFF default until DLP
+    // switching is exposed as an explicit action and all legacy UI paths are safe.
+    printers.select_preset_by_name("- default -", true);
+#else
     printers.select_preset_by_name(preferred_printer ? preferred_printer->name : initial_printer_profile_name, true);
+#endif
 
     // Selects the profile, leaves it to -1 if the initial profile name is empty or if it was not found.
     prints.select_preset_by_name_strict(initial_print_profile_name);
@@ -712,7 +721,7 @@ void PresetBundle::load_selections(AppConfig &config, const PresetPreferences& p
                 if (extruder_frst.select_filament(preferred_preset_name))
                     filaments.select_preset_by_name_strict(preferred_preset_name);
             }
-        } else if (printer_technology == ptSLA && ! preferred_selection.sla_material.empty()) {
+        } else if ((printer_technology == ptSLA || printer_technology == ptDLP) && ! preferred_selection.sla_material.empty()) {
             const std::string& preferred_preset_name = get_preset_name_by_alias(Preset::Type::TYPE_SLA_MATERIAL, preferred_selection.sla_material);
             if (auto it = sla_materials.find_preset_internal(preferred_preset_name);
                 it != sla_materials.end() && it->is_visible && it->is_compatible)
@@ -1076,6 +1085,7 @@ void PresetBundle::load_config_file_config(const std::string &name_or_path, bool
         config.option<ConfigOptionStrings>("default_filament_profile", true);
 		break;
 	case ptSLA:
+	case ptDLP:
 		config.option<ConfigOptionString>("default_sla_print_profile", true);
 		config.option<ConfigOptionString>("default_sla_material_profile", true);
 		break;
@@ -1193,6 +1203,7 @@ void PresetBundle::load_config_file_config(const std::string &name_or_path, bool
         break;
     }
     case ptSLA:
+    case ptDLP:
         load_preset(this->sla_prints,    0, "sla_print_settings_id");
         load_preset(this->sla_materials, 1, "sla_material_settings_id");
         load_preset(this->printers,      2, "printer_settings_id");
@@ -2021,6 +2032,7 @@ void PresetBundle::update_compatible(PresetSelectCompatibleType select_other_pri
 		break;
     }
     case ptSLA:
+    case ptDLP:
     {
 		assert(printer_preset.config.has("default_sla_print_profile"));
 		assert(printer_preset.config.has("default_sla_material_profile"));

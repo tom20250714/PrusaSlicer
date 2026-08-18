@@ -1,0 +1,6 @@
+diff --git a/src/slic3r/GUI/Plater.cpp b/src/slic3r/GUI/Plater.cpp
+--- a/src/slic3r/GUI/Plater.cpp
++++ b/src/slic3r/GUI/Plater.cpp
+@@ -67 +67 @@
+-#include "libslic3r/DLP/DLPPrint.hpp"
++#include "../../../external/dlp-engine/src/libslic3r/DLP/DLPPrint.hpp"
